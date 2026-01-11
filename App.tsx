@@ -91,6 +91,7 @@ export default function App() {
   const [editName, setEditName] = useState('');
   const [editingChoreId, setEditingChoreId] = useState<string | null>(null);
   const [editChoreTitle, setEditChoreTitle] = useState('');
+  const [editChorePoints, setEditChorePoints] = useState(10);
 
   const avatarColors = [
     'bg-red-500', 'bg-orange-500', 'bg-amber-500', 
@@ -160,19 +161,39 @@ export default function App() {
   const startEditingChore = (chore: Chore) => {
     setEditingChoreId(chore.id);
     setEditChoreTitle(chore.title);
+    setEditChorePoints(chore.points);
   };
 
   const cancelEditingChore = () => {
     setEditingChoreId(null);
     setEditChoreTitle('');
+    setEditChorePoints(10);
   };
 
-  const saveChoreTitle = useCallback(() => {
+  const saveChore = useCallback(() => {
     if (!editChoreTitle.trim() || !editingChoreId) return;
-    setChores(prev => prev.map(c => c.id === editingChoreId ? { ...c, title: editChoreTitle.trim() } : c));
+    
+    setChores(prev => prev.map(c => {
+      if (c.id === editingChoreId) {
+        const newPoints = Number(editChorePoints) || 0;
+        const pointDiff = newPoints - c.points;
+        
+        // If the chore is completed and assigned, reconcile the member's points
+        if (c.status === 'completed' && c.assignedTo && pointDiff !== 0) {
+          setMembers(prevMembers => prevMembers.map(m => 
+            m.id === c.assignedTo ? { ...m, totalPoints: Math.max(0, m.totalPoints + pointDiff) } : m
+          ));
+        }
+        
+        return { ...c, title: editChoreTitle.trim(), points: newPoints };
+      }
+      return c;
+    }));
+    
     setEditingChoreId(null);
     setEditChoreTitle('');
-  }, [editChoreTitle, editingChoreId]);
+    setEditChorePoints(10);
+  }, [editChoreTitle, editChorePoints, editingChoreId]);
 
   const addChore = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -542,20 +563,33 @@ export default function App() {
                       <div className={`w-3 h-3 rounded-full ${chore.status === 'completed' ? 'bg-green-400' : 'bg-slate-300'} ring-4 ring-slate-50 flex-shrink-0`}></div>
                       <div className="flex-1">
                         {editingChoreId === chore.id ? (
-                          <div className="flex items-center gap-2 max-w-sm">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full max-w-xl">
                             <input 
                               type="text" 
                               value={editChoreTitle}
                               onChange={(e) => setEditChoreTitle(e.target.value)}
-                              className="flex-1 px-3 py-1.5 rounded-xl border-2 border-indigo-300 focus:ring-0 outline-none font-bold"
+                              className="flex-1 px-3 py-1.5 rounded-xl border-2 border-indigo-300 focus:ring-0 outline-none font-bold w-full"
+                              placeholder="Chore name"
                               autoFocus
                             />
-                            <button onClick={saveChoreTitle} className="p-1.5 text-green-600 hover:bg-green-50 rounded-xl">
-                              <Check className="w-5 h-5" />
-                            </button>
-                            <button onClick={cancelEditingChore} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-xl">
-                              <X className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                              <input 
+                                type="number" 
+                                value={editChorePoints}
+                                onChange={(e) => setEditChorePoints(Number(e.target.value))}
+                                className="w-20 px-3 py-1.5 rounded-xl border-2 border-indigo-300 focus:ring-0 outline-none font-bold text-center"
+                                min="0"
+                              />
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">PTS</span>
+                              <div className="flex items-center gap-1">
+                                <button onClick={saveChore} className="p-1.5 text-green-600 hover:bg-green-50 rounded-xl">
+                                  <Check className="w-5 h-5" />
+                                </button>
+                                <button onClick={cancelEditingChore} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-xl">
+                                  <X className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         ) : (
                           <>
@@ -590,7 +624,7 @@ export default function App() {
                           <button 
                             onClick={() => startEditingChore(chore)}
                             className="text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 p-2.5 rounded-xl transition-all"
-                            title="Edit task name"
+                            title="Edit task name and points"
                           >
                             <Pencil className="w-5 h-5" />
                           </button>
